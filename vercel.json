@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/**/*.ts", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/queue", "dest": "/api/queue.ts" },
+    { "src": "/api/checkin", "dest": "/api/checkin.ts" },
+    { "src": "/api/report", "dest": "/api/report.ts" },
+    { "src": "/api/shop", "dest": "/api/shop.ts" }
+  ]
+}

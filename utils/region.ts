@@ -1,0 +1,1 @@
+export const VERCEL_REGION_CONFIG = { regions: ['sin1'] };
