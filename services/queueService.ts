@@ -3,7 +3,6 @@ import dayjs from "dayjs";
 import { getDistanceFromLatLonInM } from "../utils/distance";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
-import { logger } from "../utils/log";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -58,13 +57,15 @@ export async function checkInUser({
     throw new Error("out_of_range");
   }
 
-  const userDocRef = db
+  const queueDocRef = db
     .collection("shops")
     .doc(shopId)
     .collection("queues")
-    .doc(today)
-    .collection("queueUsers")
-    .doc(userId);
+    .doc(today);
+
+  await queueDocRef.set({ createdAt: now.toISOString() });
+
+  const userDocRef = queueDocRef.collection("queueUsers").doc(userId);
 
   const userDoc = await userDocRef.get();
   if (userDoc.exists) {
