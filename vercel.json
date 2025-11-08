@@ -6,7 +6,10 @@
   "routes": [
     { "src": "/api/queue", "dest": "/api/queue.ts" },
     { "src": "/api/checkin", "dest": "/api/checkin.ts" },
-    { "src": "/api/report", "dest": "/api/report.ts" },
     { "src": "/api/shop", "dest": "/api/shop.ts" }
-  ]
+  ],
+  "crons": [{
+    "path": "/api/report",
+    "schedule": "30 23 * * *"
+  }]
 }
