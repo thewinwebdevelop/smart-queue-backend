@@ -24,7 +24,8 @@ async function deleteSubcollection(
 }
 
 export async function reportAndClearQueue({ shopId }: ReportParams) {
-  const today = dayjs().format("YYYY-MM-DD");
+  const now = dayjs().tz("Asia/Bangkok");
+  const today = now.format("YYYY-MM-DD");
   const yesterday = dayjs().subtract(1, "day").format("YYYY-MM-DD");
   const queuesSnapshot = await db
     .collection("shops")
@@ -34,7 +35,7 @@ export async function reportAndClearQueue({ shopId }: ReportParams) {
   const reportResults: any[] = [];
 
   for (const doc of queuesSnapshot.docs) {
-    const queueId = doc.id; // เช่น shop_001_2025-10-23
+    const queueId = doc.id;
     if (!queueId) continue;
     // 🔹 ลบข้อมูลคิวเก่าของวันก่อนหน้า
     if (queueId === yesterday) {
@@ -43,6 +44,9 @@ export async function reportAndClearQueue({ shopId }: ReportParams) {
     }
 
     // 🔹 ส่งรายงานของวันนี้
+    console.info(`[Report]: queueId is ${queueId}`);
+    console.info(`[Report]: today is ${today}`);
+
     if (queueId === today) {
       const shopDoc = await db.collection("shops").doc(shopId).get();
       if (!shopDoc.exists) continue;
@@ -54,10 +58,14 @@ export async function reportAndClearQueue({ shopId }: ReportParams) {
 
       // 🧾 Header message
       const headerText = `📋 รายงานคิวประจำวันที่ ${today}\nร้าน: ${shopName}\nจำนวนคิวทั้งหมด: ${queueUserDoc.size}`;
+      console.info(`[Report]: headerText is ${headerText}`);
+
       // 🔹 Flex Bubble สำหรับแต่ละลูกค้า
       const customerBubbles = queueUserDoc.docs.map(
         (user: any, idx: number) => {
           const userDetail = user.data();
+          console.info({ userDetail }, `[Report]: userDetail is`);
+
           return {
             type: "box",
             layout: "horizontal",
@@ -115,7 +123,6 @@ export async function reportAndClearQueue({ shopId }: ReportParams) {
           ],
         },
       };
-
       //🔹 ส่ง Flex Message ไปหาเจ้าของร้าน
       await pushFlexMessage(
         token,

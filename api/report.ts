@@ -5,11 +5,8 @@ import { VERCEL_REGION_CONFIG } from "../utils/region";
 export const config = VERCEL_REGION_CONFIG;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).end("Unauthorized");
   }
   const shopId = Array.isArray(req.query.shopId)
     ? req.query.shopId[0]
@@ -19,14 +16,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ success: false, error: "shopId" });
   }
   try {
+    console.info(`++++++ [Report] ++++++`);
+    console.info(`[Report]: Request shopId is ${shopId}`);
     const result = await reportAndClearQueue({ shopId });
+    console.info({ result }, "[Report]: Report detail");
     res.json({
       success: true,
       message: "Daily reports sent and old queues cleared.",
       result,
     });
   } catch (err: any) {
-    console.error("Report error:", err);
+    console.error("[Report] error:", err);
     res.status(500).json({ success: false, message: err.message });
+  } finally {
+    console.info(`++++++ [Report] ++++++`);
   }
 }

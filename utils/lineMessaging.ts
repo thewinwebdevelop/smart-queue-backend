@@ -19,6 +19,8 @@ export async function pushFlexMessage(
       },
     ],
   };
+  console.info({ body }, "[Report-PushFlexMessage]: body detail");
+  console.info(`[Report-PushFlexMessage]: accessToken is ${accessToken}`);
 
   await axios.post("https://api.line.me/v2/bot/message/multicast", body, {
     headers: {
