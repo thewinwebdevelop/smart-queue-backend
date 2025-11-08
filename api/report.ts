@@ -11,9 +11,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
+  const shopId = Array.isArray(req.query.shopId)
+    ? req.query.shopId[0]
+    : req.query.shopId;
 
+  if (!shopId) {
+    return res.status(400).json({ success: false, error: "shopId" });
+  }
   try {
-    const result = await reportAndClearQueue();
+    const result = await reportAndClearQueue({ shopId });
     res.json({
       success: true,
       message: "Daily reports sent and old queues cleared.",

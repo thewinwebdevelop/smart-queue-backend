@@ -2,70 +2,82 @@ import { db } from "./firestore";
 import { pushFlexMessage } from "../utils/lineMessaging";
 import dayjs from "dayjs";
 
-export async function reportAndClearQueue() {
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+interface ReportParams {
+  shopId: string;
+}
+
+async function deleteSubcollection(
+  queueRef: FirebaseFirestore.DocumentReference
+) {
+  const usersSnapshot = await queueRef.collection("queueUsers").get();
+
+  for (const userDoc of usersSnapshot.docs) {
+    await userDoc.ref.delete(); // ลบแต่ละ user
+  }
+  await queueRef.delete();
+  console.info(`Deleted ${usersSnapshot.size} documents in queueUsers`);
+}
+
+export async function reportAndClearQueue({ shopId }: ReportParams) {
   const today = dayjs().format("YYYY-MM-DD");
   const yesterday = dayjs().subtract(1, "day").format("YYYY-MM-DD");
-
-  const queuesSnapshot = await db.collection("queues").get();
+  const queuesSnapshot = await db
+    .collection("shops")
+    .doc(shopId)
+    .collection("queues")
+    .get();
   const reportResults: any[] = [];
 
   for (const doc of queuesSnapshot.docs) {
     const queueId = doc.id; // เช่น shop_001_2025-10-23
-    const [shopId = "", date = ""] = queueId.split("_");
-    if (!shopId || !date) continue;
-
+    if (!queueId) continue;
     // 🔹 ลบข้อมูลคิวเก่าของวันก่อนหน้า
-    if (date === yesterday) {
-      await db.collection("queues").doc(queueId).delete();
+    if (queueId === yesterday) {
+      await deleteSubcollection(doc.ref);
       continue;
     }
 
     // 🔹 ส่งรายงานของวันนี้
-    if (date === today) {
+    if (queueId === today) {
       const shopDoc = await db.collection("shops").doc(shopId).get();
       if (!shopDoc.exists) continue;
-
       const shop = shopDoc.data()!;
-      const { name: shopName, owners, line_channel_token } = shop;
-      const list = doc.data().list || [];
+      const { name: shopName, ownerUserId, line_channel_token: token } = shop;
+      const queueUserDoc = await doc.ref.collection("queueUsers").get();
 
-      if (!owners?.length || !line_channel_token) continue;
+      if (!ownerUserId?.length || !token) continue;
 
       // 🧾 Header message
-      const headerText = `📋 รายงานคิวประจำวันที่ ${today}\nร้าน: ${shopName}\nจำนวนคิวทั้งหมด: ${list.length}`;
-
+      const headerText = `📋 รายงานคิวประจำวันที่ ${today}\nร้าน: ${shopName}\nจำนวนคิวทั้งหมด: ${queueUserDoc.size}`;
       // 🔹 Flex Bubble สำหรับแต่ละลูกค้า
-      const customerBubbles = list.map((q: any, idx: number) => ({
-        type: "box",
-        layout: "horizontal",
-        spacing: "sm",
-        contents: [
-          {
-            type: "image",
-            url:
-              q.pictureUrl ||
-              "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-            size: "xxs",
-            aspectMode: "cover",
-            aspectRatio: "1:1",
-            gravity: "center",
-            margin: "sm",
-            cornerRadius: "50%",
-          },
-          {
-            type: "text",
-            text: `${idx + 1}. ${q.lineName}${q.name ? ` (${q.name})` : ""}`,
-            wrap: true,
-            size: "sm",
-            flex: 1,
-          },
-        ],
-      }));
+      const customerBubbles = queueUserDoc.docs.map(
+        (user: any, idx: number) => {
+          const userDetail = user.data();
+          return {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              {
+                type: "text",
+                text: `${idx + 1}. ${userDetail.name}`,
+                wrap: true,
+                size: "sm",
+                flex: 1,
+              },
+            ],
+          };
+        }
+      );
 
       // 🔹 Flex Message Body
       const flexContent = {
         type: "bubble",
-        size: "mega",
         body: {
           type: "box",
           layout: "vertical",
@@ -89,7 +101,7 @@ export async function reportAndClearQueue() {
               margin: "md",
               spacing: "sm",
               contents:
-                list.length > 0
+                queueUserDoc.size > 0
                   ? customerBubbles
                   : [
                       {
@@ -104,15 +116,15 @@ export async function reportAndClearQueue() {
         },
       };
 
-      // 🔹 ส่ง Flex Message ไปหาเจ้าของร้าน
+      //🔹 ส่ง Flex Message ไปหาเจ้าของร้าน
       await pushFlexMessage(
-        line_channel_token,
-        owners,
+        token,
+        ownerUserId,
         `รายงานคิวประจำวันที่ ${today}`,
         flexContent
       );
 
-      reportResults.push({ shopId, count: list.length });
+      reportResults.push({ shopId, count: queueUserDoc.size });
     }
   }
 
